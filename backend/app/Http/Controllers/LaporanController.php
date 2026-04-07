@@ -48,8 +48,12 @@ class LaporanController extends Controller
             }
 
             $hasil[] = [
+                'id'=>$d->id,
+                'user_id'=>$d->user_id,
                 'nama'=>$d->nama,
                 'email'=>$d->email,
+                'status_kepegawaian'=>$d->status_kepegawaian,
+                'posisi'=>$d->posisi,
                 'tanggal'=>$d->tanggal,
                 'jam_masuk'=>$jam_masuk,
                 'jam_pulang'=>$jam_pulang,
