@@ -14,6 +14,7 @@ class AuthController extends Controller
             'name' => $req->name,
             'email' => $req->email,
             'password' => Hash::make($req->password),
+            'role' => 'pegawai' // default
         ]);
 
         return response()->json($user);
