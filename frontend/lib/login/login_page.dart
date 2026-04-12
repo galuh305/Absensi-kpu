@@ -5,6 +5,8 @@ import 'package:frontend/login/register.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:frontend/config/api_host.dart';
+import 'package:frontend/ui/app_feedback.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -77,7 +79,7 @@ class _LoginPageState extends State<LoginPage> {
     
     try {
       final response = await http.post(
-        Uri.parse('http://127.0.0.1:8000/api/login'),
+        apiUri('/api/login'),
         headers: {'Accept': 'application/json'},
         body: {
           'email': email,
@@ -112,19 +114,35 @@ class _LoginPageState extends State<LoginPage> {
         );
       } else {
         if (!mounted) return;
-        final msg = jsonDecode(response.body);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(msg['message'] ?? 'Login gagal.')),
-        );
+        final email = _emailController.text.trim();
+        final msg = extractApiMessage(response.body);
+
+        // Prioritas: bedakan pakai status code (kalau backend mendukung)
+        if (response.statusCode == 404) {
+          AppFeedback.error(
+            context,
+            email.isEmpty
+                ? 'Email belum terdaftar. Silakan daftar terlebih dahulu.'
+                : 'Email "$email" belum terdaftar. Silakan daftar terlebih dahulu.',
+          );
+        } else if (response.statusCode == 401 || response.statusCode == 422) {
+          // Umumnya backend memakai 401/422 untuk kredensial salah
+          AppFeedback.error(context, 'Password salah.');
+        } else {
+          // Fallback: humanize dari message backend
+          final pretty = humanizeLoginError(
+            msg.isEmpty ? 'Password salah.' : msg,
+            email: email,
+          );
+          AppFeedback.error(context, pretty);
+        }
       }
     } catch (e) {
       setState(() {
         _isLoading = false;
       });
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Koneksi ke server gagal: $e')),
-      );
+      AppFeedback.error(context, 'Koneksi ke server gagal. Coba lagi.');
     }
   }
 
@@ -136,6 +154,7 @@ class _LoginPageState extends State<LoginPage> {
       );
     }
 
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -144,7 +163,6 @@ class _LoginPageState extends State<LoginPage> {
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 420),
               child: Card(
-                elevation: 2,
                 child: Padding(
                   padding: const EdgeInsets.all(20),
                   child: Form(
@@ -153,14 +171,27 @@ class _LoginPageState extends State<LoginPage> {
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        Container(
+                          height: 52,
+                          width: 52,
+                          decoration: BoxDecoration(
+                            color: cs.primaryContainer,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Icon(
+                            Icons.how_to_reg_rounded,
+                            color: cs.primary,
+                          ),
+                        ),
+                        const SizedBox(height: 14),
                         Text(
-                          'Login Aplikasi Absen',
+                          'Absen Pegawai',
                           style: Theme.of(context).textTheme.headlineSmall,
                           textAlign: TextAlign.center,
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 6),
                         Text(
-                          '2 level akun: admin dan pegawai',
+                          'Silakan masukkan email dan password Anda',
                           style: Theme.of(context).textTheme.bodyMedium,
                           textAlign: TextAlign.center,
                         ),
@@ -169,7 +200,7 @@ class _LoginPageState extends State<LoginPage> {
                           controller: _emailController,
                           decoration: const InputDecoration(
                             labelText: 'Email',
-                            border: OutlineInputBorder(),
+                            prefixIcon: Icon(Icons.alternate_email_rounded),
                           ),
                           validator: (value) {
                             if (value == null || value.trim().isEmpty) {
@@ -189,7 +220,7 @@ class _LoginPageState extends State<LoginPage> {
                           obscureText: _hidePassword,
                           decoration: InputDecoration(
                             labelText: 'Password',
-                            border: const OutlineInputBorder(),
+                            prefixIcon: const Icon(Icons.lock_rounded),
                             suffixIcon: IconButton(
                               onPressed: () {
                                 setState(() {
@@ -211,24 +242,26 @@ class _LoginPageState extends State<LoginPage> {
                           },
                         ),
                         const SizedBox(height: 16),
-                        _isLoading 
-                            ? const Center(child: CircularProgressIndicator())
-                            : FilledButton(
-                                onPressed: _handleLogin,
-                                child: const Text('Masuk'),
-                              ),
-                        const SizedBox(height: 10),
-                        TextButton(
-                          onPressed: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => const RegisterPage(),
-                              ),
-                            );
-                          },
-                          child: const Text('Daftar'),
-                        ),
-                        const SizedBox(height: 10),
+                        if (_isLoading)
+                          const Center(child: CircularProgressIndicator())
+                        else ...[
+                          FilledButton(
+                            onPressed: _handleLogin,
+                            child: const Text('Masuk'),
+                          ),
+                          const SizedBox(height: 10),
+                          OutlinedButton(
+                            onPressed: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => const RegisterPage(),
+                                ),
+                              );
+                            },
+                            child: const Text('Daftar Akun Pegawai'),
+                          ),
+                        ],
+                        const SizedBox(height: 4),
 
                       ],
                     ),

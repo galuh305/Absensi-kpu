@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'dart:convert';
+import 'package:frontend/config/api_host.dart';
+import 'package:frontend/ui/app_feedback.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({Key? key}) : super(key: key);
@@ -14,8 +15,6 @@ class _RegisterPageState extends State<RegisterPage> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  // Role di-set otomatis
-  final String _role = 'pegawai';
   bool _hidePassword = true;
   bool _isLoading = false;
 
@@ -32,42 +31,47 @@ class _RegisterPageState extends State<RegisterPage> {
       setState(() {
         _isLoading = true;
       });
-      final response = await http.post(
-        Uri.parse(
-          'http://127.0.0.1:8000/api/register',
-        ),
-        headers: {'Accept': 'application/json'},
-        body: {
-          'name': _nameController.text,
-          'email': _emailController.text,
-          'password': _passwordController.text,
-          // role otomatis 'pegawai' di backend
-        },
-      );
-      setState(() {
-        _isLoading = false;
-      });
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Registrasi berhasil!')));
-        Navigator.of(context).pop();
-      } else {
-        final msg = jsonDecode(response.body);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Registrasi gagal: \\n${msg['message'] ?? response.body}',
-            ),
-          ),
+      try {
+        final response = await http.post(
+          apiUri('/api/register'),
+          headers: {'Accept': 'application/json'},
+          body: {
+            'name': _nameController.text.trim(),
+            'email': _emailController.text.trim(),
+            'password': _passwordController.text,
+            // role otomatis 'pegawai' di backend
+          },
         );
+
+        if (!mounted) return;
+        setState(() {
+          _isLoading = false;
+        });
+
+        if (response.statusCode == 200 || response.statusCode == 201) {
+          AppFeedback.success(context, 'Registrasi berhasil. Silakan login.');
+          Navigator.of(context).pop();
+        } else {
+          final raw = extractApiMessage(response.body);
+          final pretty = humanizeRegisterError(
+            raw,
+            email: _emailController.text.trim(),
+          );
+          AppFeedback.error(context, pretty);
+        }
+      } catch (_) {
+        if (!mounted) return;
+        setState(() {
+          _isLoading = false;
+        });
+        AppFeedback.error(context, 'Koneksi ke server gagal. Coba lagi.');
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -76,7 +80,6 @@ class _RegisterPageState extends State<RegisterPage> {
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 420),
               child: Card(
-                elevation: 2,
                 child: Padding(
                   padding: const EdgeInsets.all(20),
                   child: Form(
@@ -85,6 +88,19 @@ class _RegisterPageState extends State<RegisterPage> {
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        Container(
+                          height: 52,
+                          width: 52,
+                          decoration: BoxDecoration(
+                            color: cs.primaryContainer,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Icon(
+                            Icons.person_add_alt_1_rounded,
+                            color: cs.primary,
+                          ),
+                        ),
+                        const SizedBox(height: 14),
                         Text(
                           'Registrasi Akun',
                           style: Theme.of(context).textTheme.headlineSmall,
@@ -101,7 +117,7 @@ class _RegisterPageState extends State<RegisterPage> {
                           controller: _nameController,
                           decoration: const InputDecoration(
                             labelText: 'Nama Lengkap',
-                            border: OutlineInputBorder(),
+                            prefixIcon: Icon(Icons.badge_rounded),
                           ),
                           validator: (value) => value == null || value.isEmpty
                               ? 'Nama wajib diisi'
@@ -112,7 +128,7 @@ class _RegisterPageState extends State<RegisterPage> {
                           controller: _emailController,
                           decoration: const InputDecoration(
                             labelText: 'Email',
-                            border: OutlineInputBorder(),
+                            prefixIcon: Icon(Icons.alternate_email_rounded),
                           ),
                           keyboardType: TextInputType.emailAddress,
                           validator: (value) {
@@ -133,7 +149,7 @@ class _RegisterPageState extends State<RegisterPage> {
                           obscureText: _hidePassword,
                           decoration: InputDecoration(
                             labelText: 'Password',
-                            border: const OutlineInputBorder(),
+                            prefixIcon: const Icon(Icons.lock_rounded),
                             suffixIcon: IconButton(
                               onPressed: () {
                                 setState(() {
@@ -154,7 +170,7 @@ class _RegisterPageState extends State<RegisterPage> {
                         ),
                         const SizedBox(height: 16),
                         _isLoading
-                            ? const CircularProgressIndicator()
+                            ? const Center(child: CircularProgressIndicator())
                             : FilledButton(
                                 onPressed: _register,
                                 child: const Text('Daftar'),

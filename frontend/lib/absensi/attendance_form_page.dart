@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:frontend/config/api_host.dart';
 import 'package:frontend/models.dart';
+import 'package:frontend/ui/app_feedback.dart';
 
 class AttendanceFormPage extends StatefulWidget {
   const AttendanceFormPage({super.key, required this.account});
@@ -40,22 +41,22 @@ class _AttendanceFormPageState extends State<AttendanceFormPage> {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token') ?? '';
 
-    String url = '';
+    late final Uri url;
     Map<String, dynamic> body = {};
 
     if (_jenisAbsen == 'Jam Masuk') {
-      url = 'http://127.0.0.1:8000/api/absen-masuk';
+      url = apiUri('/api/absen-masuk');
       body = {
         'status_kepegawaian': _statusKepegawaian,
         'posisi': '-', // Nilai default supaya tidak error database jika not null
       };
     } else {
-      url = 'http://127.0.0.1:8000/api/absen-pulang';
+      url = apiUri('/api/absen-pulang');
       if (_posisiController.text.trim().isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Posisi saat ini wajib diisi')),
-        );
-        setState(() { _isLoading = false; });
+        AppFeedback.error(context, 'Posisi saat ini wajib diisi.');
+        setState(() {
+          _isLoading = false;
+        });
         return;
       }
       body = {
@@ -66,7 +67,7 @@ class _AttendanceFormPageState extends State<AttendanceFormPage> {
 
     try {
       final response = await http.post(
-        Uri.parse(url),
+        url,
         headers: {
           'Accept': 'application/json',
           'Authorization': 'Bearer $token',
@@ -85,7 +86,9 @@ class _AttendanceFormPageState extends State<AttendanceFormPage> {
           barrierDismissible: false,
           builder: (_) => AlertDialog(
             title: const Text('Absen Berhasil'),
-            content: Text('Anda berhasil absen $_jenisAbsen pada sistem.'),
+            content: Text(
+              'Absen $_jenisAbsen berhasil.\nWaktu dicatat realtime oleh server.',
+            ),
             actions: [
               TextButton(
                 onPressed: () {
@@ -99,9 +102,10 @@ class _AttendanceFormPageState extends State<AttendanceFormPage> {
         );
       } else {
         if (!mounted) return;
-        final msg = jsonDecode(response.body);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal: ${msg['message'] ?? response.body}')),
+        final msg = extractApiMessage(response.body);
+        AppFeedback.error(
+          context,
+          msg.isEmpty ? 'Gagal mengirim absen. Coba lagi.' : msg,
         );
       }
     } catch (e) {
@@ -109,14 +113,13 @@ class _AttendanceFormPageState extends State<AttendanceFormPage> {
         _isLoading = false;
       });
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Koneksi bermasalah: $e')),
-      );
+      AppFeedback.error(context, 'Koneksi bermasalah. Coba lagi.');
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(title: const Text('Form Absensi Harian')),
       body: SafeArea(
@@ -125,90 +128,159 @@ class _AttendanceFormPageState extends State<AttendanceFormPage> {
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              Text(
-                'Data akan disimpan sesuai Waktu Realtime Server',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 14),
-              TextFormField(
-                initialValue: widget.account.name,
-                decoration: const InputDecoration(
-                  labelText: 'Nama Lengkap',
-                  border: OutlineInputBorder(),
-                ),
-                enabled: false,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                initialValue: widget.account.email,
-                decoration: const InputDecoration(
-                  labelText: 'Email',
-                  border: OutlineInputBorder(),
-                ),
-                enabled: false,
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                value: _jenisAbsen,
-                decoration: const InputDecoration(
-                  labelText: 'Pilih Absen (Jam Masuk / Jam Pulang) *',
-                  border: OutlineInputBorder(),
-                ),
-                items: const [
-                  DropdownMenuItem(value: 'Jam Masuk', child: Text('Jam Masuk')),
-                  DropdownMenuItem(value: 'Jam Pulang', child: Text('Jam Pulang')),
-                ],
-                onChanged: (value) {
-                  setState(() {
-                    _jenisAbsen = value!;
-                  });
-                },
-              ),
-              
-              if (_jenisAbsen == 'Jam Pulang') ...[
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _posisiController,
-                  decoration: const InputDecoration(
-                    labelText: 'Posisi saat ini *',
-                    border: OutlineInputBorder(),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        height: 44,
+                        width: 44,
+                        decoration: BoxDecoration(
+                          color: cs.primaryContainer,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Icon(Icons.fact_check_rounded, color: cs.primary),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Absensi Realtime',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Waktu absen dicatat oleh server saat tombol Submit ditekan.',
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Posisi wajib diisi';
-                    }
-                    return null;
-                  },
                 ),
-              ],
-              
-              const SizedBox(height: 14),
-              DropdownButtonFormField<String>(
-                value: _statusKepegawaian,
-                decoration: const InputDecoration(
-                  labelText: 'Status Kepegawaian *',
-                  border: OutlineInputBorder(),
-                ),
-                items: const [
-                  DropdownMenuItem(value: 'PNS', child: Text('PNS')),
-                  DropdownMenuItem(value: 'PPPK', child: Text('PPPK')),
-                  DropdownMenuItem(value: 'PPNPN', child: Text('PPNPN')),
-                ],
-                onChanged: (value) {
-                  setState(() {
-                    _statusKepegawaian = value!;
-                  });
-                },
               ),
-              
-              const SizedBox(height: 24),
-              _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : FilledButton.icon(
-                      onPressed: _submitForm,
-                      icon: const Icon(Icons.send),
-                      label: const Text('Submit Absen (Realtime)'),
-                    ),
+              const SizedBox(height: 12),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        'Data Pegawai',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        initialValue: widget.account.name,
+                        decoration: const InputDecoration(
+                          labelText: 'Nama Lengkap',
+                          prefixIcon: Icon(Icons.badge_rounded),
+                        ),
+                        enabled: false,
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        initialValue: widget.account.email,
+                        decoration: const InputDecoration(
+                          labelText: 'Email',
+                          prefixIcon: Icon(Icons.alternate_email_rounded),
+                        ),
+                        enabled: false,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        'Detail Absensi',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 12),
+                      SegmentedButton<String>(
+                        segments: const [
+                          ButtonSegment(
+                            value: 'Jam Masuk',
+                            label: Text('Jam Masuk'),
+                            icon: Icon(Icons.login_rounded),
+                          ),
+                          ButtonSegment(
+                            value: 'Jam Pulang',
+                            label: Text('Jam Pulang'),
+                            icon: Icon(Icons.logout_rounded),
+                          ),
+                        ],
+                        selected: <String>{_jenisAbsen},
+                        onSelectionChanged: (selection) {
+                          setState(() {
+                            _jenisAbsen = selection.first;
+                          });
+                        },
+                      ),
+                      if (_jenisAbsen == 'Jam Pulang') ...[
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _posisiController,
+                          decoration: const InputDecoration(
+                            labelText: 'Posisi saat ini *',
+                            prefixIcon: Icon(Icons.my_location_rounded),
+                          ),
+                          validator: (value) {
+                            if (_jenisAbsen != 'Jam Pulang') return null;
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Posisi wajib diisi';
+                            }
+                            return null;
+                          },
+                        ),
+                      ],
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<String>(
+                        value: _statusKepegawaian,
+                        decoration: const InputDecoration(
+                          labelText: 'Status Kepegawaian *',
+                          prefixIcon: Icon(Icons.work_rounded),
+                        ),
+                        items: const [
+                          DropdownMenuItem(value: 'PNS', child: Text('PNS')),
+                          DropdownMenuItem(value: 'PPPK', child: Text('PPPK')),
+                          DropdownMenuItem(value: 'PPNPN', child: Text('PPNPN')),
+                        ],
+                        onChanged: (value) {
+                          setState(() {
+                            _statusKepegawaian = value!;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 18),
+                      _isLoading
+                          ? const Center(child: CircularProgressIndicator())
+                          : FilledButton.icon(
+                              onPressed: _submitForm,
+                              icon: const Icon(Icons.send_rounded),
+                              label: const Text('Submit Absen'),
+                            ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Pastikan data sudah benar sebelum submit.',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
         ),
