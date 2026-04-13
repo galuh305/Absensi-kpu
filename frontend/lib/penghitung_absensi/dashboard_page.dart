@@ -127,12 +127,14 @@ class _DashboardPageState extends State<DashboardPage> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _goToForm,
-        icon: const Icon(Icons.assignment_turned_in_outlined, size: 20),
-        label: const Text('Isi Absen'),
-        extendedPadding: const EdgeInsets.symmetric(horizontal: 16),
-      ),
+      floatingActionButton: isAdmin
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: _goToForm,
+              icon: const Icon(Icons.assignment_turned_in_outlined, size: 20),
+              label: const Text('Isi Absen'),
+              extendedPadding: const EdgeInsets.symmetric(horizontal: 16),
+            ),
       body: FutureBuilder<List<AttendanceRecord>>(
         future: _futureAbsensi,
         builder: (context, snapshot) {
