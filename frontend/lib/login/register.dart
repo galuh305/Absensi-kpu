@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:frontend/config/api_host.dart';
 import 'package:frontend/ui/app_feedback.dart';
+import 'package:frontend/widgets/semi_transparent_image_background.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({Key? key}) : super(key: key);
@@ -73,7 +74,7 @@ class _RegisterPageState extends State<RegisterPage> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Scaffold(
-      body: SafeArea(
+      body: SemiTransparentImageBackground(
         child: Center(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(20),

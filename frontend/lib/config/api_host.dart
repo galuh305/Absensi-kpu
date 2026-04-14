@@ -13,7 +13,7 @@
 /// Contoh lain:
 /// - Hanya uji di **emulator Android** (server di PC yang sama): `http://10.0.2.2:8000`
 /// - Hanya **browser di PC**: `http://127.0.0.1:8000`
-const String kApiBaseUrl = 'http://127.0.0.1:8000';
+const String kApiBaseUrl = 'http://10.57.207.163:8000';
 
 /// Membangun URL endpoint API (path harus diawali `/`, mis. `/api/login`).
 Uri apiUri(String path) {

@@ -8,6 +8,7 @@ import 'package:frontend/absensi/attendance_form_page.dart';
 import 'package:frontend/penghitung_absensi/laporan_page.dart';
 import 'package:frontend/config/api_host.dart';
 import 'package:frontend/util/download_report_csv.dart';
+import 'package:frontend/widgets/semi_transparent_image_background.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key, required this.account});
@@ -108,6 +109,7 @@ class _DashboardPageState extends State<DashboardPage> {
   Widget build(BuildContext context) {
     final bool isAdmin = widget.account.role == 'admin';
     return Scaffold(
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: const Text('Dashboard Absen'),
         actions: [
@@ -135,7 +137,8 @@ class _DashboardPageState extends State<DashboardPage> {
               label: const Text('Isi Absen'),
               extendedPadding: const EdgeInsets.symmetric(horizontal: 16),
             ),
-      body: FutureBuilder<List<AttendanceRecord>>(
+      body: SemiTransparentImageBackground(
+        child: FutureBuilder<List<AttendanceRecord>>(
         future: _futureAbsensi,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -378,8 +381,9 @@ class _DashboardPageState extends State<DashboardPage> {
                   ),
               ],
             ],
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }

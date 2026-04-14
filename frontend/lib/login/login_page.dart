@@ -7,6 +7,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:frontend/config/api_host.dart';
 import 'package:frontend/ui/app_feedback.dart';
+import 'package:frontend/widgets/semi_transparent_image_background.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -16,10 +17,15 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
+  static const String _rememberMeKey = 'remember_me';
+  static const String _rememberedEmailKey = 'remembered_email';
+  static const String _rememberedPasswordKey = 'remembered_password';
+
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _hidePassword = true;
+  bool _rememberMe = false;
 
   bool _isLoading = false;
   bool _isCheckingAuth = true;
@@ -50,8 +56,14 @@ class _LoginPageState extends State<LoginPage> {
         MaterialPageRoute<void>(builder: (_) => DashboardPage(account: user)),
       );
     } else {
+      final remembered = prefs.getBool(_rememberMeKey) ?? false;
+      if (remembered) {
+        _emailController.text = prefs.getString(_rememberedEmailKey) ?? '';
+        _passwordController.text = prefs.getString(_rememberedPasswordKey) ?? '';
+      }
       if (mounted) {
         setState(() {
+          _rememberMe = remembered;
           _isCheckingAuth = false;
         });
       }
@@ -99,6 +111,15 @@ class _LoginPageState extends State<LoginPage> {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('token', token);
         await prefs.setString('user', jsonEncode(userData));
+        if (_rememberMe) {
+          await prefs.setBool(_rememberMeKey, true);
+          await prefs.setString(_rememberedEmailKey, email);
+          await prefs.setString(_rememberedPasswordKey, password);
+        } else {
+          await prefs.remove(_rememberMeKey);
+          await prefs.remove(_rememberedEmailKey);
+          await prefs.remove(_rememberedPasswordKey);
+        }
 
         final user = UserAccount(
           id: userData['id'],
@@ -149,20 +170,25 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     if (_isCheckingAuth) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+      return Scaffold(
+        backgroundColor: Colors.transparent,
+        body: SemiTransparentImageBackground(
+          child: const Center(child: CircularProgressIndicator()),
+        ),
       );
     }
 
     final cs = Theme.of(context).colorScheme;
     return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: Card(
+      backgroundColor: Colors.transparent,
+      body: SemiTransparentImageBackground(
+        child: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: Card(
                 child: Padding(
                   padding: const EdgeInsets.all(20),
                   child: Form(
@@ -241,6 +267,19 @@ class _LoginPageState extends State<LoginPage> {
                             return null;
                           },
                         ),
+                        const SizedBox(height: 6),
+                        CheckboxListTile(
+                          value: _rememberMe,
+                          onChanged: (value) {
+                            setState(() {
+                              _rememberMe = value ?? false;
+                            });
+                          },
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          controlAffinity: ListTileControlAffinity.leading,
+                          title: const Text('Remember me'),
+                        ),
                         const SizedBox(height: 16),
                         if (_isLoading)
                           const Center(child: CircularProgressIndicator())
@@ -266,6 +305,7 @@ class _LoginPageState extends State<LoginPage> {
                       ],
                     ),
                   ),
+                ),
                 ),
               ),
             ),
